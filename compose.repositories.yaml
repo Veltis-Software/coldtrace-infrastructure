@@ -1,0 +1,78 @@
+name: coldtrace-tp1
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+    ports: ['13306:3306']
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql-init.sh:/docker-entrypoint-initdb.d/01-coldtrace.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h localhost -uroot -p"$$MYSQL_ROOT_PASSWORD" --silent']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  pubsub:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: ['gcloud', 'beta', 'emulators', 'pubsub', 'start', '--project=coldtrace-local', '--host-port=0.0.0.0:8681']
+    ports: ['8681:8681']
+  pubsub-init:
+    image: python:3.12-slim
+    environment:
+      PUBSUB_EMULATOR_HOST: pubsub:8681
+      PUBSUB_PROJECT_ID: coldtrace-local
+      ALERT_PUSH_URL: ${ALERT_PUSH_URL:-http://host.docker.internal:8084/internal/pubsub/events}
+    volumes: ['./pubsub_init.py:/app/pubsub_init.py:ro']
+    command: ['python', '/app/pubsub_init.py']
+    depends_on: [pubsub]
+  monitoring:
+    profiles: [apps]
+    build:
+      context: ../coldtrace-monitoring-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        shared: ../coldtrace-shared
+    environment:
+      PORT: '8080'
+      DB_URL: jdbc:mysql://mysql:3306/ct_monitoring?serverTimezone=UTC
+      DB_USER: ct_monitoring
+      DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      IDENTITY_URL: http://host.docker.internal:8090
+      COLDTRACE_PUBSUB_EMULATOR_HOST: pubsub:8681
+    ports: ['18083:8080']
+    depends_on:
+      mysql: {condition: service_healthy}
+  gateway:
+    profiles: [apps]
+    build:
+      context: ../coldtrace-api-gateway
+      dockerfile: Dockerfile
+      additional_contexts:
+        shared: ../coldtrace-shared
+    environment:
+      MONITORING_URL: http://monitoring:8080
+      BACKEND_URL: http://host.docker.internal:8090
+      ALERT_URL: http://alert:8080
+    ports: ['18080:8080']
+    depends_on: [monitoring]
+  alert:
+    profiles: [apps]
+    build:
+      context: ../coldtrace-alert-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        shared: ../coldtrace-shared
+    environment:
+      PORT: '8080'
+      DB_URL: jdbc:mysql://mysql:3306/ct_alert?serverTimezone=UTC
+      DB_USER: ct_alert
+      DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      IDENTITY_URL: http://host.docker.internal:8090
+      COLDTRACE_PUBSUB_LOCAL_PUSH_ENABLED: 'true'
+    ports: ['18084:8080']
+    depends_on:
+      mysql: {condition: service_healthy}
+volumes:
+  mysql-data:

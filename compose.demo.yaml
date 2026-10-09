@@ -1,0 +1,9 @@
+# Explicit synthetic local fixtures. Never use this override for cloud deployment.
+services:
+  monitoring:
+    environment:
+      SPRING_PROFILES_ACTIVE: demo
+      DEMO_SENSORS: '50'
+  pubsub-init:
+    environment:
+      ALERT_PUSH_URL: http://alert:8080/internal/pubsub/events

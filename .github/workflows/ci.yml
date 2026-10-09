@@ -1,0 +1,12 @@
+name: Validate orchestration
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose --env-file .env.example -f compose.repositories.yaml config --quiet
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m py_compile pubsub_init.py
+      - run: bash -n mysql-init.sh
