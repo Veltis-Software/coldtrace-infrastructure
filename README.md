@@ -6,8 +6,8 @@ schemas for later contexts are preparation, not implemented services.
 
 ## Local environment
 
-Clone the service repositories into sibling directories. Before initial PRs
-are merged, check out their `feature/...` implementation branches. Check out
+Clone the service repositories into sibling directories; `develop` contains
+the current development increment. Check out
 `v0.1.0-sprint1` in `coldtrace-shared` to match the pinned consumer dependency.
 The existing IAM backend must run on the host at port 8090 with its own DB.
 
