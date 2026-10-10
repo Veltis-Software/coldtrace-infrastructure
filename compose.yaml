@@ -23,7 +23,7 @@ services:
     environment:
       PUBSUB_EMULATOR_HOST: pubsub:8681
       PUBSUB_PROJECT_ID: coldtrace-local
-      ALERT_PUSH_URL: ${ALERT_PUSH_URL:-http://host.docker.internal:8084/internal/pubsub/events}
+      ALERT_PUSH_URL: ${ALERT_PUSH_URL:-http://alert:8080/internal/pubsub/events}
     volumes: ['./pubsub_init.py:/app/pubsub_init.py:ro']
     command: ['python', '/app/pubsub_init.py']
     depends_on: [pubsub]
