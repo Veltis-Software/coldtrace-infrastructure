@@ -7,9 +7,9 @@ propuestos, no recursos existentes:
 | Recurso | Nombre propuesto |
 |---|---|
 | Proyecto | coldtrace-tp1-g13 (sujeto a disponibilidad global) |
-| Región | us-central1 |
+| Región | southamerica-west1, conforme al ADD; validar precios antes de aprovisionar |
 | Artifact Registry | coldtrace-services |
-| Cloud Run | coldtrace-monitoring, coldtrace-alert, coldtrace-gateway |
+| Cloud Run | coldtrace-monitoring, coldtrace-alert, coldtrace-report, coldtrace-gateway |
 | Pub/Sub | coldtrace.threshold.breached, coldtrace.source.gap |
 | Cloud SQL, si se autoriza | coldtrace-mysql-tp1 |
 
