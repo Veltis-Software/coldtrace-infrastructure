@@ -33,7 +33,7 @@ services:
       context: ../coldtrace-monitoring-service
       dockerfile: Dockerfile
       additional_contexts:
-        shared: ../coldtrace-shared
+        shared: ./libraries/coldtrace-shared
     environment:
       PORT: '8080'
       DB_URL: jdbc:mysql://mysql:3306/ct_monitoring?serverTimezone=UTC
@@ -41,6 +41,7 @@ services:
       DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
       IDENTITY_URL: http://host.docker.internal:8090
       COLDTRACE_PUBSUB_EMULATOR_HOST: pubsub:8681
+      COLDTRACE_PUBSUB_LOCAL_PUSH_ENABLED: 'true'
     ports: ['18083:8080']
     depends_on:
       mysql: {condition: service_healthy}
@@ -50,11 +51,12 @@ services:
       context: ../coldtrace-api-gateway
       dockerfile: Dockerfile
       additional_contexts:
-        shared: ../coldtrace-shared
+        shared: ./libraries/coldtrace-shared
     environment:
       MONITORING_URL: http://monitoring:8080
       BACKEND_URL: http://host.docker.internal:8090
       ALERT_URL: http://alert:8080
+      REPORT_URL: http://report:8080
     ports: ['18080:8080']
     depends_on: [monitoring]
   alert:
@@ -63,7 +65,7 @@ services:
       context: ../coldtrace-alert-service
       dockerfile: Dockerfile
       additional_contexts:
-        shared: ../coldtrace-shared
+        shared: ./libraries/coldtrace-shared
     environment:
       PORT: '8080'
       DB_URL: jdbc:mysql://mysql:3306/ct_alert?serverTimezone=UTC
@@ -71,7 +73,26 @@ services:
       DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
       IDENTITY_URL: http://host.docker.internal:8090
       COLDTRACE_PUBSUB_LOCAL_PUSH_ENABLED: 'true'
+      COLDTRACE_PUBSUB_EMULATOR_HOST: pubsub:8681
     ports: ['18084:8080']
+    depends_on:
+      mysql: {condition: service_healthy}
+  report:
+    profiles: [apps]
+    build:
+      context: ../coldtrace-report-service
+      dockerfile: Dockerfile
+      additional_contexts:
+        shared: ./libraries/coldtrace-shared
+    environment:
+      PORT: '8080'
+      DB_URL: jdbc:mysql://mysql:3306/ct_report?serverTimezone=UTC
+      DB_USER: ct_report
+      DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      IDENTITY_URL: http://host.docker.internal:8090
+      ALERT_URL: http://alert:8080
+      COLDTRACE_PUBSUB_LOCAL_PUSH_ENABLED: 'true'
+    ports: ['18085:8080']
     depends_on:
       mysql: {condition: service_healthy}
 volumes:
