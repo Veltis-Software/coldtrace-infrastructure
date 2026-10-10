@@ -18,6 +18,7 @@ subscriptions = {
     "alert-service.threshold-breached": "threshold.breached",
     "alert-service.source-gap": "source.gap",
     "report-service.readings-ingested": "readings.ingested",
+    "report-service.incident-opened": "incident.opened",
     "monitoring-service.asset-settings-changed": "asset.settings-changed",
 }
 
@@ -57,6 +58,10 @@ for subscription, topic in subscriptions.items():
                 "http://host.docker.internal:8084/internal/pubsub/events",
             )
         }
+    if subscription.startswith("report-service."):
+        body["pushConfig"] = {"pushEndpoint": os.environ.get("REPORT_PUSH_URL", "http://report:8080/internal/pubsub/events")}
+    if subscription.startswith("monitoring-service."):
+        body["pushConfig"] = {"pushEndpoint": os.environ.get("MONITORING_PUSH_URL", "http://monitoring:8080/internal/pubsub/events")}
     put("/subscriptions/" + subscription, body)
     if "pushConfig" in body:
         req = urllib.request.Request(
