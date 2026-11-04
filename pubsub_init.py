@@ -12,6 +12,7 @@ topics = [
     "source.gap",
     "readings.ingested",
     "asset.settings-changed",
+    "source.configuration-changed",
     "incident.opened",
 ]
 subscriptions = {
@@ -20,6 +21,7 @@ subscriptions = {
     "report-service.readings-ingested": "readings.ingested",
     "report-service.incident-opened": "incident.opened",
     "monitoring-service.asset-settings-changed": "asset.settings-changed",
+    "monitoring-service.source-configuration-changed": "source.configuration-changed",
 }
 
 
@@ -35,6 +37,7 @@ def put(path, body):
             return response.status
     except urllib.error.HTTPError as exc:
         if exc.code == 409:
+            exc.close()
             return 409
         raise
 
