@@ -1,40 +1,44 @@
 # ColdTrace Infrastructure
 
-Docker Compose runs MySQL 8, the local Pub/Sub emulator, Monitoring, Alert, Report and
-API Gateway. MySQL has a schema and restricted user per bounded context;
-schemas for later contexts are preparation, not implemented services.
+Docker Compose starts the API Gateway, the eight service repositories, MySQL 8
+and a local Pub/Sub emulator. MySQL gives each stateful service a schema and
+restricted account. AI Assistance runs without a database.
 
 ## Local environment
 
-Clone the service repositories into sibling directories; `develop` contains
-the current development increment. The technical common library lives in `libraries/coldtrace-shared` inside this
-repository; no additional shared repository is required.
-The existing IAM backend must run on the host at port 8090 with its own DB.
+Clone the service repositories into sibling directories at the revisions in
+the table below. The technical common library lives in
+`libraries/coldtrace-shared` inside this repository.
+
+| Repository | Integration branch |
+|---|---|
+| coldtrace-identity-service | feature/extract-identity |
+| coldtrace-asset-service | feature/extract-asset |
+| coldtrace-subscription-service | feature/extract-subscription |
+| coldtrace-maintenance-service | feature/extract-maintenance |
+| coldtrace-ai-assistance-service | feature/extract-ai-assistance |
+| coldtrace-api-gateway | feature/complete-service-extraction |
+| coldtrace-monitoring-service | feature/complete-service-extraction |
+| coldtrace-alert-service | feature/complete-service-extraction |
+| coldtrace-report-service | feature/complete-service-extraction |
+| coldtrace-web-app | feature/complete-service-extraction |
+
+Copy `.env.example` to `.env` for the isolated local environment and run:
 
 ```sh
-cp .env.example .env
-docker compose -f compose.repositories.yaml --profile apps up --build -d
+docker compose --profile apps up --build -d
 ```
 
-For explicit synthetic fixtures, add `-f compose.demo.yaml`. `.env.example`
-contains local-only credentials; configure independent secrets outside local
-development. The consolidated source uses `compose.yaml` instead of
-`compose.repositories.yaml`.
+Use a fresh Compose project when verifying a schema migration. The Gateway
+listens on loopback port 28080 and MySQL on loopback port 23306. Configure Web
+and Edge to use the Gateway. API documents are available under
+`/<service>/v3/api-docs`, such as `/monitoring/v3/api-docs`.
+The database bootstrap runs only when MySQL initializes a fresh volume.
 
-| Component | Host port |
-|---|---|
-| API Gateway | 18080 |
-| Monitoring / Swagger | 18083 |
-| Alert / Swagger | 18084 |
-| Report / Swagger | 18085 |
-| MySQL | 13306 |
-| Pub/Sub emulator | 8681 |
-
-`pubsub_init.py` creates topics/subscriptions and updates push endpoints
-idempotently. For Docker apps the default sets the receiver to
-`http://alert:8080/internal/pubsub/events`; host processes use the default
-host.docker.internal endpoint. After emulator restart, run
-`docker compose run --rm pubsub-init` again because emulator state is ephemeral.
+The Pub/Sub bootstrap creates topics and subscriptions with container DNS
+names. After emulator restart, run `docker compose run --rm pubsub-init` to
+recreate that configuration. To generate an explicit Monitoring fixture, add
+`-f compose.yaml -f compose.demo.yaml` to the Compose command.
 
 ## Deployment boundaries
 
