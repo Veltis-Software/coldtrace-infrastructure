@@ -26,14 +26,20 @@ the table below. The technical common library lives in
 Copy `.env.example` to `.env` for the isolated local environment and run:
 
 ```sh
-docker compose --profile apps up --build -d
+docker compose --profile apps --profile web up --build -d
 ```
 
 Use a fresh Compose project when verifying a schema migration. The Gateway
-listens on loopback port 28080 and MySQL on loopback port 23306. Configure Web
-and Edge to use the Gateway. API documents are available under
+listens on loopback port 28080 and MySQL on loopback port 23306. The Web image
+listens on port 24200 and proxies API requests to the Gateway. Configure Edge
+to use the Gateway. API documents are available under
 `/<service>/v3/api-docs`, such as `/monitoring/v3/api-docs`.
 The database bootstrap runs only when MySQL initializes a fresh volume.
+
+Run `pwsh -File tests/Verify-ServiceBoundaries.ps1 -GatewayUrl http://127.0.0.1:28080`
+against an isolated Compose environment. The script registers a disposable
+organization, checks its ownership boundaries and exercises source revision,
+provisioning, canonical ingestion, deduplication and reading history.
 
 The Pub/Sub bootstrap creates topics and subscriptions with container DNS
 names. After emulator restart, run `docker compose run --rm pubsub-init` to

@@ -2,9 +2,13 @@ param(
     [string]$IdentityUrl = 'http://127.0.0.1:18101',
     [string]$AssetUrl = 'http://127.0.0.1:18102',
     [string]$SubscriptionUrl = 'http://127.0.0.1:18107',
+    [string]$GatewayUrl,
     [string]$OutputPath
 )
 $ErrorActionPreference = 'Stop'
+if ($GatewayUrl) {
+    $IdentityUrl = $AssetUrl = $SubscriptionUrl = $GatewayUrl.TrimEnd('/')
+}
 $results = [System.Collections.Generic.List[object]]::new()
 function Request([string]$Method, [string]$Url, $Body, $Headers = @{}) {
     $arguments = @{ Method = $Method; Uri = $Url; Headers = $Headers; SkipHttpErrorCheck = $true }
@@ -96,8 +100,72 @@ try {
     Check 'cross-organization-read-denied' ($foreign.Status -eq 403)
     $foreignBilling = Request GET "$SubscriptionUrl/api/v1/organizations/$foreignOrg/subscription" $null $headers
     Check 'cross-organization-billing-denied' ($foreignBilling.Status -eq 403)
+    $foreignUsers = Request GET "$IdentityUrl/api/v1/organizations/$foreignOrg/users" $null $headers
+    Check 'cross-organization-user-list-denied' ($foreignUsers.Status -eq 403)
+    $organizations = Request GET "$IdentityUrl/api/v1/organizations" $null $headers
+    Check 'organization-catalog-is-tenant-scoped' ($organizations.Status -eq 200 -and @($organizations.Data).Count -eq 1 -and $organizations.Data[0].id -eq $org)
     $internal = Request GET "$AssetUrl/internal/assets/organizations/$org/usage" $null $headers
-    Check 'browser-token-is-not-workload-identity' ($internal.Status -eq 401)
+    if ($GatewayUrl) {
+        Check 'gateway-does-not-expose-owner-api' ($internal.Status -eq 404)
+        foreach ($resource in 'sensor-readings','incidents','notifications','reports','maintenance-schedules','technical-service-requests') {
+            $response = Request GET "$GatewayUrl/api/v1/organizations/$org/$resource" $null $headers
+            Check "public-$resource-owner-reachable" ($response.Status -eq 200)
+        }
+        $settings = Request PUT "$AssetUrl/api/v1/organizations/$org/asset-settings/default" @{
+            minimumTemperature = 2; maximumTemperature = 8; minimumHumidity = 35; maximumHumidity = 80
+            temperatureUnit = 'C'; humidityUnit = '%'; weightUnit = 'kg'
+            calibrationFrequencyDays = 30; readingFrequencySeconds = 30; alertThresholdMinutes = 1
+        } $headers
+        Check 'owner-default-safe-range' ($settings.Status -in 200,201)
+        $gatewayKey = [Guid]::NewGuid().ToString('N')
+        $provision = Request POST "$GatewayUrl/api/v1/telemetry/provisioning" @{
+            gatewayId = $gateway.Data.id; gatewayApiKey = $gatewayKey
+        } $headers
+        Check 'monitoring-provisions-from-identity-and-asset' ($provision.Status -eq 200 -and $provision.Data.devicesProvisioned -eq 1)
+        $reading = @{
+            deviceUuid = $device.Data.uuid; sequenceNumber = 1
+            recordedAt = [DateTimeOffset]::UtcNow.ToString('o'); temperature = 4.2; humidity = 61.0
+            sourceId = $profile.sourceId; profileVersion = 1; schemaVersion = 1
+            temperatureUnit = 'C'; humidityUnit = '%RH'
+        }
+        $batch = @{ gatewayUuid = $gateway.Data.uuid; readings = @($reading) }
+        $deviceHeaders = @{ 'X-Gateway-Key' = $gatewayKey; 'Idempotency-Key' = [Guid]::NewGuid().ToString() }
+        $accepted = Request POST "$GatewayUrl/api/v1/telemetry/batches" $batch $deviceHeaders
+        Check 'canonical-telemetry-accepted' ($accepted.Status -eq 202 -and $accepted.Data.accepted -eq 1)
+        $duplicate = Request POST "$GatewayUrl/api/v1/telemetry/batches" $batch $deviceHeaders
+        Check 'canonical-retry-is-idempotent' ($duplicate.Status -eq 202 -and $duplicate.Data.duplicated -eq 1)
+        $state = Request GET "$GatewayUrl/api/v1/assets/$($asset.Data.id)/state" $null $headers
+        Check 'asset-state-reflects-real-ingest' ($state.Status -eq 200 -and $state.Data.status -eq 'NORMAL')
+        $readings = Request GET "$GatewayUrl/api/v1/organizations/$org/sensor-readings" $null $headers
+        Check 'web-history-contains-one-reading' ($readings.Status -eq 200 -and @($readings.Data).Count -eq 1 -and $readings.Data[0].temperature -eq 4.2)
+        $ai = Request POST "$GatewayUrl/api/v1/organizations/$org/dashboard/ai-interpretation" @{
+            question = 'Como se encuentra la temperatura de conservacion?'
+        } $headers
+        Check 'advisory-access-respects-subscription' ($ai.Status -eq 409 -and $ai.Data.entitlementKey -eq 'ai-guidance')
+
+        $period = @{
+            title = 'Trazabilidad de conservacion Callao'
+            periodStart = [DateTimeOffset]::UtcNow.AddHours(-1).ToString('o')
+            periodEnd = [DateTimeOffset]::UtcNow.AddHours(1).ToString('o')
+        }
+        $reportReady = $false
+        for ($attempt = 0; $attempt -lt 5 -and !$reportReady; $attempt++) {
+            $job = Request POST "$GatewayUrl/api/v1/reports" $period $headers
+            if ($job.Status -ne 202) { throw "Report submission returned HTTP $($job.Status)" }
+            for ($poll = 0; $poll -lt 10; $poll++) {
+                $reportResult = Request GET "$GatewayUrl/api/v1/reports/$($job.Data.id)/result" $null $headers
+                if ($reportResult.Status -eq 200) {
+                    $reportReady = $reportResult.Data.readingCount -eq 1
+                    break
+                }
+                Start-Sleep -Seconds 1
+            }
+            if (!$reportReady) { Start-Sleep -Seconds 2 }
+        }
+        Check 'report-consumes-the-committed-reading-once' $reportReady
+    } else {
+        Check 'browser-token-is-not-workload-identity' ($internal.Status -eq 401)
+    }
     $anonymous = Request GET "$AssetUrl/api/v1/organizations/$org/locations" $null
     Check 'anonymous-asset-read-denied' ($anonymous.Status -eq 401)
     $preflight = Request OPTIONS "$AssetUrl/api/v1/organizations/$org/locations" $null @{

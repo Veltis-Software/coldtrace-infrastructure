@@ -28,6 +28,7 @@ services:
     depends_on: [pubsub]
   monitoring:
     profiles: [apps]
+    mem_limit: 512m
     build:
       context: ${MONITORING_SERVICE_CONTEXT:-../coldtrace-monitoring-service}
       dockerfile: Dockerfile
@@ -47,6 +48,7 @@ services:
       mysql: {condition: service_healthy}
   gateway:
     profiles: [apps]
+    mem_limit: 512m
     build:
       context: ${API_GATEWAY_CONTEXT:-../coldtrace-api-gateway}
       dockerfile: Dockerfile
@@ -65,6 +67,7 @@ services:
     depends_on: [monitoring]
   alert:
     profiles: [apps]
+    mem_limit: 640m
     build:
       context: ${ALERT_SERVICE_CONTEXT:-../coldtrace-alert-service}
       dockerfile: Dockerfile
@@ -88,6 +91,7 @@ services:
       mysql: {condition: service_healthy}
   report:
     profiles: [apps]
+    mem_limit: 512m
     build:
       context: ${REPORT_SERVICE_CONTEXT:-../coldtrace-report-service}
       dockerfile: Dockerfile
@@ -111,6 +115,7 @@ services:
       mysql: {condition: service_healthy}
   identity:
     profiles: [apps]
+    mem_limit: 640m
     build:
       context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-identity-service
     environment:
@@ -125,6 +130,7 @@ services:
       mysql: {condition: service_healthy}
   asset:
     profiles: [apps]
+    mem_limit: 640m
     build:
       context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-asset-service
     environment:
@@ -140,6 +146,7 @@ services:
       mysql: {condition: service_healthy}
   subscription:
     profiles: [apps]
+    mem_limit: 640m
     build:
       context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-subscription-service
     environment:
@@ -154,6 +161,7 @@ services:
       mysql: {condition: service_healthy}
   maintenance:
     profiles: [apps]
+    mem_limit: 640m
     build:
       context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-maintenance-service
     environment:
@@ -170,6 +178,7 @@ services:
       mysql: {condition: service_healthy}
   ai:
     profiles: [apps]
+    mem_limit: 512m
     build:
       context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-ai-assistance-service
     environment:
@@ -182,5 +191,13 @@ services:
       MAINTENANCE_URL: http://maintenance:8080
       REPORT_URL: http://report:8080
       MONITORING_URL: http://monitoring:8080
+  web:
+    profiles: [web]
+    build:
+      context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-web-app
+    environment:
+      API_UPSTREAM: http://gateway:8080
+    ports: ['127.0.0.1:${WEB_LOCAL_PORT:-24200}:8080']
+    depends_on: [gateway]
 volumes:
   mysql-data:
