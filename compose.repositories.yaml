@@ -33,7 +33,7 @@ services:
       context: ${MONITORING_SERVICE_CONTEXT:-../coldtrace-monitoring-service}
       dockerfile: Dockerfile
       additional_contexts:
-        shared: ./libraries/coldtrace-shared
+        shared: ${SHARED_LIBRARY_CONTEXT:-../coldtrace-shared}
     environment:
       PORT: '8080'
       DB_URL: jdbc:mysql://mysql:3306/ct_monitoring?serverTimezone=UTC
@@ -53,7 +53,7 @@ services:
       context: ${API_GATEWAY_CONTEXT:-../coldtrace-api-gateway}
       dockerfile: Dockerfile
       additional_contexts:
-        shared: ./libraries/coldtrace-shared
+        shared: ${SHARED_LIBRARY_CONTEXT:-../coldtrace-shared}
     environment:
       MONITORING_URL: http://monitoring:8080
       IDENTITY_URL: http://identity:8080
@@ -72,7 +72,7 @@ services:
       context: ${ALERT_SERVICE_CONTEXT:-../coldtrace-alert-service}
       dockerfile: Dockerfile
       additional_contexts:
-        shared: ./libraries/coldtrace-shared
+        shared: ${SHARED_LIBRARY_CONTEXT:-../coldtrace-shared}
     environment:
       PORT: '8080'
       DB_URL: jdbc:mysql://mysql:3306/ct_alert?serverTimezone=UTC
@@ -96,7 +96,7 @@ services:
       context: ${REPORT_SERVICE_CONTEXT:-../coldtrace-report-service}
       dockerfile: Dockerfile
       additional_contexts:
-        shared: ./libraries/coldtrace-shared
+        shared: ${SHARED_LIBRARY_CONTEXT:-../coldtrace-shared}
     environment:
       PORT: '8080'
       DB_URL: jdbc:mysql://mysql:3306/ct_report?serverTimezone=UTC
