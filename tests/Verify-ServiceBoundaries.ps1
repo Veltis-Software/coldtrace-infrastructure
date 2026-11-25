@@ -3,7 +3,8 @@ param(
     [string]$AssetUrl = 'http://127.0.0.1:18102',
     [string]$SubscriptionUrl = 'http://127.0.0.1:18107',
     [string]$GatewayUrl,
-    [string]$OutputPath
+    [string]$OutputPath,
+    [string]$BrowserOrigin = 'http://localhost:4200'
 )
 $ErrorActionPreference = 'Stop'
 if ($GatewayUrl) {
@@ -169,10 +170,12 @@ try {
     $anonymous = Request GET "$AssetUrl/api/v1/organizations/$org/locations" $null
     Check 'anonymous-asset-read-denied' ($anonymous.Status -eq 401)
     $preflight = Request OPTIONS "$AssetUrl/api/v1/organizations/$org/locations" $null @{
-        Origin = 'http://localhost:4200'; 'Access-Control-Request-Method' = 'POST'
+        Origin = $BrowserOrigin; 'Access-Control-Request-Method' = 'POST'
         'Access-Control-Request-Headers' = 'authorization,content-type'
     }
-    Check 'browser-cors-preflight' ($preflight.Status -eq 200 -and $preflight.Headers['Access-Control-Allow-Origin'] -contains 'http://localhost:4200')
+    Check 'browser-cors-preflight' ($preflight.Status -eq 200 -and $preflight.Headers['Access-Control-Allow-Origin'] -contains $BrowserOrigin)
+    $browserLogin = Request POST "$IdentityUrl/api/v1/authentication/sign-in" @{ email = $email; password = $password } @{ Origin = $BrowserOrigin }
+    Check 'browser-origin-sign-in' ($browserLogin.Status -eq 200 -and !!$browserLogin.Data.token)
 } finally {
     $report = [ordered]@{
         verifiedAt = [DateTimeOffset]::UtcNow.ToString('o')

@@ -55,6 +55,7 @@ services:
       additional_contexts:
         shared: ${SHARED_LIBRARY_CONTEXT:-../coldtrace-shared}
     environment:
+      WEB_ORIGINS: &local_web_origins http://127.0.0.1:4200,http://localhost:4200,http://127.0.0.1:${WEB_LOCAL_PORT:-24200},http://localhost:${WEB_LOCAL_PORT:-24200}
       MONITORING_URL: http://monitoring:8080
       IDENTITY_URL: http://identity:8080
       ASSET_URL: http://asset:8080
@@ -119,6 +120,7 @@ services:
     build:
       context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-identity-service
     environment:
+      CORS_ALLOWED_ORIGIN_PATTERNS: *local_web_origins
       PORT: '8080'
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
       DB_URL: jdbc:mysql://mysql:3306/ct_identity?serverTimezone=UTC
@@ -134,6 +136,7 @@ services:
     build:
       context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-asset-service
     environment:
+      CORS_ALLOWED_ORIGIN_PATTERNS: *local_web_origins
       PORT: '8080'
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
       DB_URL: jdbc:mysql://mysql:3306/ct_asset?serverTimezone=UTC
@@ -150,6 +153,7 @@ services:
     build:
       context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-subscription-service
     environment:
+      CORS_ALLOWED_ORIGIN_PATTERNS: *local_web_origins
       PORT: '8080'
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
       DB_URL: jdbc:mysql://mysql:3306/ct_subscription?serverTimezone=UTC
@@ -165,6 +169,7 @@ services:
     build:
       context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-maintenance-service
     environment:
+      CORS_ALLOWED_ORIGIN_PATTERNS: *local_web_origins
       PORT: '8080'
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
       DB_URL: jdbc:mysql://mysql:3306/ct_maintenance?serverTimezone=UTC
@@ -182,6 +187,7 @@ services:
     build:
       context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-ai-assistance-service
     environment:
+      CORS_ALLOWED_ORIGIN_PATTERNS: *local_web_origins
       PORT: '8080'
       INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
       IDENTITY_URL: http://identity:8080
