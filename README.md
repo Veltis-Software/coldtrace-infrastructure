@@ -1,14 +1,14 @@
 # ColdTrace Infrastructure
 
-Docker Compose runs MySQL 8, the local Pub/Sub emulator, Monitoring, Alert and
+Docker Compose runs MySQL 8, the local Pub/Sub emulator, Monitoring, Alert, Report and
 API Gateway. MySQL has a schema and restricted user per bounded context;
 schemas for later contexts are preparation, not implemented services.
 
 ## Local environment
 
 Clone the service repositories into sibling directories; `develop` contains
-the current development increment. Check out
-`v0.1.0-sprint1` in `coldtrace-shared` to match the pinned consumer dependency.
+the current development increment. The technical common library lives in `libraries/coldtrace-shared` inside this
+repository; no additional shared repository is required.
 The existing IAM backend must run on the host at port 8090 with its own DB.
 
 ```sh
@@ -26,11 +26,12 @@ development. The consolidated source uses `compose.yaml` instead of
 | API Gateway | 18080 |
 | Monitoring / Swagger | 18083 |
 | Alert / Swagger | 18084 |
+| Report / Swagger | 18085 |
 | MySQL | 13306 |
 | Pub/Sub emulator | 8681 |
 
 `pubsub_init.py` creates topics/subscriptions and updates push endpoints
-idempotently. For Docker apps the demo override sets the receiver to
+idempotently. For Docker apps the default sets the receiver to
 `http://alert:8080/internal/pubsub/events`; host processes use the default
 host.docker.internal endpoint. After emulator restart, run
 `docker compose run --rm pubsub-init` again because emulator state is ephemeral.
