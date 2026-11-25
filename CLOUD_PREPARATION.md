@@ -1,12 +1,13 @@
-# Preparación cloud pendiente — TP1
+# Preparación cloud
 
-La evidencia realizada es el despliegue local con Docker Compose. No se ha
-creado un proyecto ni se han contratado recursos. Los siguientes nombres son
-propuestos, no recursos existentes:
+El proyecto de desarrollo es `veltis-coldtrace-dev`, número `311618880556`.
+El preflight de `gcp/` verifica identidad, estado y facturación sin crear recursos.
+El incremento tiene un entorno local con Docker Compose; los nombres de servicios
+siguientes forman parte de la configuración de despliegue:
 
 | Recurso | Nombre propuesto |
 |---|---|
-| Proyecto | coldtrace-tp1-g13 (sujeto a disponibilidad global) |
+| Proyecto | veltis-coldtrace-dev (311618880556) |
 | Región | southamerica-west1, conforme al ADD; validar precios antes de aprovisionar |
 | Artifact Registry | coldtrace-services |
 | Cloud Run | coldtrace-monitoring, coldtrace-alert, coldtrace-report, coldtrace-gateway |
