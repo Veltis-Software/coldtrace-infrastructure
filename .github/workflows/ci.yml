@@ -12,4 +12,8 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: python -m py_compile pubsub_init.py
+      - run: python -m unittest discover -s tests -p 'test_*.py' -v
       - run: bash -n mysql-init.sh
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: "21", cache: maven}
+      - run: mvn -B -f libraries/coldtrace-shared/pom.xml verify

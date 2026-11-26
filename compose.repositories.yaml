@@ -1,11 +1,11 @@
-name: coldtrace-tp1
+name: coldtrace
 services:
   mysql:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
-    ports: ['13306:3306']
+    ports: ['127.0.0.1:${MYSQL_LOCAL_PORT:-23306}:3306']
     volumes:
       - mysql-data:/var/lib/mysql
       - ./mysql-init.sh:/docker-entrypoint-initdb.d/01-coldtrace.sh:ro
@@ -17,62 +17,193 @@ services:
   pubsub:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     command: ['gcloud', 'beta', 'emulators', 'pubsub', 'start', '--project=coldtrace-local', '--host-port=0.0.0.0:8681']
-    ports: ['8681:8681']
   pubsub-init:
     image: python:3.12-slim
     environment:
       PUBSUB_EMULATOR_HOST: pubsub:8681
       PUBSUB_PROJECT_ID: coldtrace-local
-      ALERT_PUSH_URL: ${ALERT_PUSH_URL:-http://host.docker.internal:8084/internal/pubsub/events}
+      ALERT_PUSH_URL: ${ALERT_PUSH_URL:-http://alert:8080/internal/pubsub/events}
     volumes: ['./pubsub_init.py:/app/pubsub_init.py:ro']
     command: ['python', '/app/pubsub_init.py']
     depends_on: [pubsub]
   monitoring:
     profiles: [apps]
+    mem_limit: 512m
     build:
-      context: ../coldtrace-monitoring-service
+      context: ${MONITORING_SERVICE_CONTEXT:-../coldtrace-monitoring-service}
       dockerfile: Dockerfile
       additional_contexts:
-        shared: ../coldtrace-shared
+        shared: ${SHARED_LIBRARY_CONTEXT:-../coldtrace-shared}
     environment:
       PORT: '8080'
       DB_URL: jdbc:mysql://mysql:3306/ct_monitoring?serverTimezone=UTC
       DB_USER: ct_monitoring
       DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
-      IDENTITY_URL: http://host.docker.internal:8090
+      IDENTITY_URL: http://identity:8080
+      ASSET_URL: http://asset:8080
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
       COLDTRACE_PUBSUB_EMULATOR_HOST: pubsub:8681
-    ports: ['18083:8080']
+      COLDTRACE_PUBSUB_LOCAL_PUSH_ENABLED: 'true'
     depends_on:
       mysql: {condition: service_healthy}
   gateway:
     profiles: [apps]
+    mem_limit: 512m
     build:
-      context: ../coldtrace-api-gateway
+      context: ${API_GATEWAY_CONTEXT:-../coldtrace-api-gateway}
       dockerfile: Dockerfile
       additional_contexts:
-        shared: ../coldtrace-shared
+        shared: ${SHARED_LIBRARY_CONTEXT:-../coldtrace-shared}
     environment:
+      WEB_ORIGINS: &local_web_origins http://127.0.0.1:4200,http://localhost:4200,http://127.0.0.1:${WEB_LOCAL_PORT:-24200},http://localhost:${WEB_LOCAL_PORT:-24200}
       MONITORING_URL: http://monitoring:8080
-      BACKEND_URL: http://host.docker.internal:8090
+      IDENTITY_URL: http://identity:8080
+      ASSET_URL: http://asset:8080
+      SUBSCRIPTION_URL: http://subscription:8080
+      MAINTENANCE_URL: http://maintenance:8080
+      AI_URL: http://ai:8080
       ALERT_URL: http://alert:8080
-    ports: ['18080:8080']
+      REPORT_URL: http://report:8080
+    ports: ['127.0.0.1:${GATEWAY_LOCAL_PORT:-28080}:8080']
     depends_on: [monitoring]
   alert:
     profiles: [apps]
+    mem_limit: 640m
     build:
-      context: ../coldtrace-alert-service
+      context: ${ALERT_SERVICE_CONTEXT:-../coldtrace-alert-service}
       dockerfile: Dockerfile
       additional_contexts:
-        shared: ../coldtrace-shared
+        shared: ${SHARED_LIBRARY_CONTEXT:-../coldtrace-shared}
     environment:
       PORT: '8080'
       DB_URL: jdbc:mysql://mysql:3306/ct_alert?serverTimezone=UTC
       DB_USER: ct_alert
       DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
-      IDENTITY_URL: http://host.docker.internal:8090
+      IDENTITY_URL: http://identity:8080
+      ASSET_URL: http://asset:8080
+      SUBSCRIPTION_URL: http://subscription:8080
+      MAINTENANCE_URL: http://maintenance:8080
+      AI_URL: http://ai:8080
+      MONITORING_URL: http://monitoring:8080
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
       COLDTRACE_PUBSUB_LOCAL_PUSH_ENABLED: 'true'
-    ports: ['18084:8080']
+      COLDTRACE_PUBSUB_EMULATOR_HOST: pubsub:8681
     depends_on:
       mysql: {condition: service_healthy}
+  report:
+    profiles: [apps]
+    mem_limit: 512m
+    build:
+      context: ${REPORT_SERVICE_CONTEXT:-../coldtrace-report-service}
+      dockerfile: Dockerfile
+      additional_contexts:
+        shared: ${SHARED_LIBRARY_CONTEXT:-../coldtrace-shared}
+    environment:
+      PORT: '8080'
+      DB_URL: jdbc:mysql://mysql:3306/ct_report?serverTimezone=UTC
+      DB_USER: ct_report
+      DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      IDENTITY_URL: http://identity:8080
+      ASSET_URL: http://asset:8080
+      SUBSCRIPTION_URL: http://subscription:8080
+      MAINTENANCE_URL: http://maintenance:8080
+      AI_URL: http://ai:8080
+      MONITORING_URL: http://monitoring:8080
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
+      ALERT_URL: http://alert:8080
+      COLDTRACE_PUBSUB_LOCAL_PUSH_ENABLED: 'true'
+    depends_on:
+      mysql: {condition: service_healthy}
+  identity:
+    profiles: [apps]
+    mem_limit: 640m
+    build:
+      context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-identity-service
+    environment:
+      CORS_ALLOWED_ORIGIN_PATTERNS: *local_web_origins
+      PORT: '8080'
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
+      DB_URL: jdbc:mysql://mysql:3306/ct_identity?serverTimezone=UTC
+      DB_USER: ct_identity
+      DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      SUBSCRIPTION_URL: http://subscription:8080
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+    depends_on:
+      mysql: {condition: service_healthy}
+  asset:
+    profiles: [apps]
+    mem_limit: 640m
+    build:
+      context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-asset-service
+    environment:
+      CORS_ALLOWED_ORIGIN_PATTERNS: *local_web_origins
+      PORT: '8080'
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
+      DB_URL: jdbc:mysql://mysql:3306/ct_asset?serverTimezone=UTC
+      DB_USER: ct_asset
+      DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      IDENTITY_URL: http://identity:8080
+      SUBSCRIPTION_URL: http://subscription:8080
+      SPRING_APPLICATION_JSON: '{"coldtrace":{"pubsub":{"emulator-host":"pubsub:8681"}}}'
+    depends_on:
+      mysql: {condition: service_healthy}
+  subscription:
+    profiles: [apps]
+    mem_limit: 640m
+    build:
+      context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-subscription-service
+    environment:
+      CORS_ALLOWED_ORIGIN_PATTERNS: *local_web_origins
+      PORT: '8080'
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
+      DB_URL: jdbc:mysql://mysql:3306/ct_subscription?serverTimezone=UTC
+      DB_USER: ct_subscription
+      DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      IDENTITY_URL: http://identity:8080
+      ASSET_URL: http://asset:8080
+    depends_on:
+      mysql: {condition: service_healthy}
+  maintenance:
+    profiles: [apps]
+    mem_limit: 640m
+    build:
+      context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-maintenance-service
+    environment:
+      CORS_ALLOWED_ORIGIN_PATTERNS: *local_web_origins
+      PORT: '8080'
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
+      DB_URL: jdbc:mysql://mysql:3306/ct_maintenance?serverTimezone=UTC
+      DB_USER: ct_maintenance
+      DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env}
+      IDENTITY_URL: http://identity:8080
+      ASSET_URL: http://asset:8080
+      SUBSCRIPTION_URL: http://subscription:8080
+      ALERT_URL: http://alert:8080
+    depends_on:
+      mysql: {condition: service_healthy}
+  ai:
+    profiles: [apps]
+    mem_limit: 512m
+    build:
+      context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-ai-assistance-service
+    environment:
+      CORS_ALLOWED_ORIGIN_PATTERNS: *local_web_origins
+      PORT: '8080'
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}
+      IDENTITY_URL: http://identity:8080
+      ASSET_URL: http://asset:8080
+      SUBSCRIPTION_URL: http://subscription:8080
+      ALERT_URL: http://alert:8080
+      MAINTENANCE_URL: http://maintenance:8080
+      REPORT_URL: http://report:8080
+      MONITORING_URL: http://monitoring:8080
+  web:
+    profiles: [web]
+    build:
+      context: ${COLDTRACE_REPOSITORIES:-..}/coldtrace-web-app
+    environment:
+      API_UPSTREAM: http://gateway:8080
+    ports: ['127.0.0.1:${WEB_LOCAL_PORT:-24200}:8080']
+    depends_on: [gateway]
 volumes:
   mysql-data:
